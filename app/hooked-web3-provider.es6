@@ -19,7 +19,7 @@ var factory = function(web3) {
       }
 
       for (var request of requests) {
-        if (request.method == "eth_sendTransaction") {
+        if (request.method == "eth_sendTransaction" || request.method == "shh_post") {
           throw new Error("HookedWeb3Provider does not support synchronous transactions. Please provide a callback.")
         }
       }
@@ -67,12 +67,16 @@ var factory = function(web3) {
       };
 
       // If this isn't a transaction we can modify, ignore it.
-      if (payload.method != "eth_sendTransaction") {
+      if (payload.method != "eth_sendTransaction" && payload.method != "shh_post") {
         return next();
       }
 
+
       var tx_params = payload.params[0];
       var sender = tx_params.from;
+
+      if (payload.method === 'shh_post')
+        delete tx_params.from;
 
       this.transaction_signer.hasAddress(sender, (err, has_address) => {
         if (err != null || has_address == false) {
@@ -110,39 +114,52 @@ var factory = function(web3) {
           }
         };
 
-        // Get the nonce, requesting from web3 if we need to.
-        // We then store the nonce and update it so we don't have to
-        // to request from web3 again.
-        getNonce((err, nonce) => {
-          if (err != null) {
-            return finished(err);
-          }
+        if (payload.method === 'shh_post') {
+          this.transaction_signer.signMessage(tx_params, sender, function(err, signed_tx_params) {
 
-          // Set the expected nonce, and update our caches of nonces.
-          // Note that if our session nonce is lower than what we have cached
-          // across all transactions (and not just this batch) use our cached
-          // version instead, even if
-          var final_nonce = Math.max(nonce, this.global_nonces[sender] || 0);
-
-          // Update the transaction parameters.
-          tx_params.nonce = web3.toHex(final_nonce);
-
-          // Update caches.
-          session_nonces[sender] = final_nonce + 1;
-          this.global_nonces[sender] = final_nonce + 1;
-
-          // If our transaction signer does represent the address,
-          // sign the transaction ourself and rewrite the payload.
-          this.transaction_signer.signTransaction(tx_params, function(err, raw_tx) {
             if (err != null) {
               return next(err);
             }
+            payload.params = [signed_tx_params];
 
-            payload.method = "eth_sendRawTransaction";
-            payload.params = [raw_tx];
             return next();
           });
-        });
+
+        } else {
+          // Get the nonce, requesting from web3 if we need to.
+          // We then store the nonce and update it so we don't have to
+          // to request from web3 again.
+          getNonce((err, nonce) => {
+            if (err != null) {
+              return finished(err);
+            }
+
+            // Set the expected nonce, and update our caches of nonces.
+            // Note that if our session nonce is lower than what we have cached
+            // across all transactions (and not just this batch) use our cached
+            // version instead, even if
+            var final_nonce = Math.max(nonce, this.global_nonces[sender] || 0);
+
+            // Update the transaction parameters.
+            tx_params.nonce = web3.toHex(final_nonce);
+
+            // Update caches.
+            session_nonces[sender] = final_nonce + 1;
+            this.global_nonces[sender] = final_nonce + 1;
+
+            // If our transaction signer does represent the address,
+            // sign the transaction ourself and rewrite the payload.
+            this.transaction_signer.signTransaction(tx_params, function(err, raw_tx) {
+              if (err != null) {
+                return next(err);
+              }
+
+              payload.method = "eth_sendRawTransaction";
+              payload.params = [raw_tx];
+              return next();
+            });
+          });
+        }
       });
     }
   }

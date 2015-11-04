@@ -32,7 +32,13 @@ var factory = function(web3) {
     // get the data for sendRawTransaction.
     sendAsync(payload, callback) {
       var backupNonces = Object.assign({}, this.global_nonces);
-      var finishedWithRewrite = () => {
+      var finishedWithRewrite = (err) => {
+        // handle signing or web3 error
+        if (err) {
+          this.global_nonces = backupNonces;
+          return callback(err, null);
+        }
+
         super.sendAsync(payload, function(err, res) {
           if (err || res.error)
             this.global_nonces = backupNonces;

@@ -78,7 +78,13 @@ var factory = function factory(web3) {
         var _this = this;
 
         var backupNonces = Object.assign({}, this.global_nonces);
-        var finishedWithRewrite = function finishedWithRewrite() {
+        var finishedWithRewrite = function finishedWithRewrite(err) {
+          // handle signing or web3 error
+          if (err) {
+            _this.global_nonces = backupNonces;
+            return callback(err, null);
+          }
+
           _get(Object.getPrototypeOf(HookedWeb3Provider.prototype), "sendAsync", _this).call(_this, payload, (function (err, res) {
             if (err || res.error) this.global_nonces = backupNonces;
             return callback(err, res);

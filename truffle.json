@@ -7,7 +7,7 @@
     // so we can refer to the built file.
     "hooked-web3-provider.min.js": {
       "files": [
-        "../build/hooked-web3-provider.js"
+        "../environments/development/build/hooked-web3-provider.js"
       ],
       "post-process": [
         "uglify"

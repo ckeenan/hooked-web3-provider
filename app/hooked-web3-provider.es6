@@ -174,7 +174,9 @@ var factory = function(web3) {
 };
 
 if (typeof module !== 'undefined') {
-  module.exports = factory(require("web3"));
+  let Web3 = require("web3");
+  let web3 = new Web3();
+  module.exports = factory(web3);
 } else {
   window.HookedWeb3Provider = factory(web3);
 }
